@@ -4,83 +4,71 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// UTILIDAD PARA LOGS 
-function logEvent(type, issueKey, user) {
-  console.log(`📌 ${type} | Issue: ${issueKey} | Usuario: ${user}`);
+// 💬 URL del webhook de Discord
+const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK;
+
+// ✨ Limpieza de logs
+function log(...args) {
+  console.log("[JIRA ➜ DISCORD]", ...args);
 }
 
-// URL BASE DE JIRA PARA LOS LINKS
-const JIRA_BASE_URL = "https://josealejandroosorioramirez.atlassian.net/browse/"; 
+// 🧠 Función para enviar embed a Discord
+async function sendDiscordEmbed({ title, description, user, issueUrl, status }) {
+  const embed = {
+    title: title || "Actualización en Jira",
+    description: description || "Sin descripción",
+    color: 3447003,
+    fields: [
+      { name: "👤 Usuario", value: user || "Desconocido", inline: true },
+      { name: "📌 Estado", value: status || "N/A", inline: true },
+      { name: "🔗 Enlace", value: `[Abrir Issue](${issueUrl})`, inline: false }
+    ],
+    timestamp: new Date().toISOString()
+  };
 
-// MAIN WEBHOOK
-app.post("/jira", async (req, res) => {
+  await fetch(DISCORD_WEBHOOK, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ embeds: [embed] })
+  });
+}
+
+// 🔥 WEBHOOK — donde Jira envía la información
+app.post("/webhook", async (req, res) => {
   try {
     const body = req.body;
 
-    if (!body || !body.issue) {
-      console.log("❗ Webhook inválido recibido");
-      return res.status(400).send("Invalid webhook");
-    }
-
+    // --- EXTRAER DATOS IMPORTANTES ---
     const issue = body.issue;
-    const user = body.user?.displayName || "Usuario desconocido";
-    const issueKey = issue.key;
-    const issueSummary = issue.fields?.summary || "Sin título";
-    const issueDesc = issue.fields?.description || "Sin descripción";
-    const issueUrl = `${JIRA_BASE_URL}${issueKey}`;
+    const user = body.user?.displayName;
+    const changelog = body.changelog;
+    const event = body.webhookEvent;
 
-    // Detectar tipo de evento
-    let eventType = "Actualización";
-    if (body.webhookEvent === "jira:issue_created") eventType = "Creación";
-    else if (body.webhookEvent === "jira:issue_updated") {
-      if (body.changelog?.items?.some(i => i.field === "status"))
-        eventType = "Transición de estado";
-      else if (body.comment) eventType = "Nuevo comentario";
-      else eventType = "Actualización";
-    }
+    const issueKey = issue?.key;
+    const summary = issue?.fields?.summary;
+    const description = issue?.fields?.description || "Sin descripción";
+    const status = issue?.fields?.status?.name;
 
-    // LOG LIMPIO
-    logEvent(eventType, issueKey, user);
+    const issueUrl = `https://josealejandroosorioramirez.atlassian.net/browse/${issueKey}`;
 
-    // EMBED BONITO PARA DISCORD
-    const embed = {
-      title: `${eventType}: ${issueKey}`,
-      description: issueSummary,
-      url: issueUrl,
-      color: 0x00aaff,
-      fields: [
-        {
-          name: "Descripción",
-          value: issueDesc.length > 200 ? issueDesc.slice(0, 200) + "..." : issueDesc,
-        },
-        {
-          name: "Modificado por",
-          value: user,
-          inline: true
-        }
-      ],
-      timestamp: new Date().toISOString()
-    };
+    log(`Evento recibido: ${event}`);
+    log(`Issue: ${issueKey}`);
 
-    // MENSAJE PARA DISCORD
-    await fetch(process.env.DISCORD_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: `🔔 **Nuevo evento en Jira • ${eventType}**`,
-        embeds: [embed]
-      })
+    await sendDiscordEmbed({
+      title: `🔔 ${issueKey} — ${summary}`,
+      description,
+      user,
+      issueUrl,
+      status
     });
 
-    res.status(200).send("OK");
-
-  } catch (err) {
-    console.error("🔥 ERROR EN WEBHOOK:", err);
-    res.status(500).send("Error");
+    return res.status(200).send("OK");
+  } catch (e) {
+    console.error("ERROR procesando webhook", e);
+    return res.status(500).send("ERROR");
   }
 });
 
-// PORT LISTENER
-app.listen(process.env.PORT || 3000, () =>
-  console.log(`Servidor listo en puerto ${process.env.PORT || 3000}`)
-);
+// Iniciar servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => log(`Servidor iniciado en puerto ${PORT}`));
