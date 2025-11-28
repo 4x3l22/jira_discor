@@ -4,14 +4,13 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// UTILIDAD PARA LOGS MÁS LIMPIOS
+// UTILIDAD PARA LOGS 
 function logEvent(type, issueKey, user) {
   console.log(`📌 ${type} | Issue: ${issueKey} | Usuario: ${user}`);
 }
 
 // URL BASE DE JIRA PARA LOS LINKS
-const JIRA_BASE_URL = "https://tu-organizacion.atlassian.net/browse/"; 
-// ⚠️ Cambia esto por tu dominio Jira
+const JIRA_BASE_URL = "https://josealejandroosorioramirez.atlassian.net/browse/"; 
 
 // MAIN WEBHOOK
 app.post("/jira", async (req, res) => {
