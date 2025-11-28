@@ -4,35 +4,35 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// Tu endpoint para recibir los webhooks de Jira
+// Endpoint para Jira
 app.post("/jira", async (req, res) => {
+  console.log("📥 Webhook recibido de Jira:");
+  console.log(JSON.stringify(req.body, null, 2)); // IMPRIME TODO EL JSON
+
   try {
     const body = req.body;
 
-    const issueKey = body.issue.key;
-    const summary = body.issue.fields.summary;
-    const url = body.issue.self.replace("/rest/api/2/issue/", "/browse/");
+    if (!body || !body.issue) {
+      console.log("❗ ERROR: Jira no envió un issue válido.");
+    } else {
+      console.log("✔ Issue recibido:", body.issue.key);
+    }
 
-    // Webhook de Discord desde variable de entorno
-    const discordWebhook = process.env.DISCORD_WEBHOOK;
-
-    const message = {
-      content: `🆕 **Nueva tarea en Jira**\n🔑 *${issueKey}* - ${summary}\n🔗 ${url}`
-    };
-
-    await fetch(discordWebhook, {
+    // Enviar a Discord (solo para probar)
+    await fetch(process.env.DISCORD_WEBHOOK, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(message)
+      body: JSON.stringify({ content: "Webhook recibido desde Jira ✔" })
     });
 
+    console.log("📤 Enviado a Discord correctamente");
     res.status(200).send("OK");
   } catch (err) {
-    console.error(err);
+    console.error("🔥 Error:", err);
     res.status(500).send("Error");
   }
 });
 
-// Puerto para Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Servidor listo en puerto " + PORT));
+app.listen(process.env.PORT || 3000, () =>
+  console.log("Servidor iniciado en puerto 3000")
+);
